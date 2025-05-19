@@ -1,7 +1,6 @@
 local httpService = game:GetService('HttpService')
 local ThemeManager = {} do
 	ThemeManager.Folder = 'LinoriaLibSettings'
-
 	ThemeManager.Library = nil
 	ThemeManager.BuiltInThemes = {
 		['Default'] 		= { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1c1c1c","AccentColor":"0055ff","BackgroundColor":"141414","OutlineColor":"323232"}') },
@@ -17,18 +16,14 @@ local ThemeManager = {} do
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = self:GetCustomTheme(theme)
 		local data = customThemeData or self.BuiltInThemes[theme]
-
 		if not data then return end
-
 		local scheme = data[2]
 		for idx, col in next, customThemeData or scheme do
 			self.Library[idx] = Color3.fromHex(col)
-
 			if Options[idx] then
 				Options[idx]:SetValueRGB(Color3.fromHex(col))
 			end
 		end
-
 		self:ThemeUpdate()
 	end
 
@@ -39,7 +34,6 @@ local ThemeManager = {} do
 				self.Library[field] = Options[field].Value
 			end
 		end
-
 		self.Library.AccentColorDark = self.Library:GetDarkerColor(self.Library.AccentColor)
 		self.Library:UpdateColorsUsingRegistry()
 	end
@@ -48,7 +42,6 @@ local ThemeManager = {} do
 		local theme = 'Default'
 		local content = isfile(self.Folder .. '/themes/default.txt') and readfile(self.Folder .. '/themes/default.txt')
 		local isDefault = true
-
 		if content then
 			if self.BuiltInThemes[content] then
 				theme = content
@@ -59,7 +52,6 @@ local ThemeManager = {} do
 		elseif self.BuiltInThemes[self.DefaultTheme] then
 			theme = self.DefaultTheme
 		end
-
 		if isDefault then
 			Options.ThemeManager_ThemeList:SetValue(theme)
 		else
@@ -86,12 +78,10 @@ local ThemeManager = {} do
 
 		groupbox:AddDivider()
 		groupbox:AddDropdown('ThemeManager_ThemeList', { Text = 'Theme list', Values = ThemesArray, Default = 1 })
-
 		groupbox:AddButton('Set as default', function()
 			self:SaveDefault(Options.ThemeManager_ThemeList.Value)
 			self.Library:Notify(string.format('Set default theme to %q', Options.ThemeManager_ThemeList.Value))
 		end)
-
 		Options.ThemeManager_ThemeList:OnChanged(function()
 			self:ApplyTheme(Options.ThemeManager_ThemeList.Value)
 		end)
@@ -115,41 +105,36 @@ local ThemeManager = {} do
 		end)
 
 		groupbox:AddButton('Set as default', function()
-			if Options.ThemeManager_CustomThemeList.Value ~= nil and Options.ThemeManager_CustomThemeList.Value ~= '' then
-				self:SaveDefault(Options.ThemeManager_CustomThemeList.Value)
-				self.Library:Notify(string.format('Set default theme to %q', Options.ThemeManager_CustomThemeList.Value))
+			local val = Options.ThemeManager_CustomThemeList.Value
+			if val ~= nil and val ~= '' then
+				self:SaveDefault(val)
+				self.Library:Notify(string.format('Set default theme to %q', val))
 			end
 		end)
 
-		-- 🔥 Add wipe all custom themes button
+		-- 👇 NEW: Wipe all custom themes (complete wipe)
 		groupbox:AddButton('Wipe ALL custom themes', function()
 			local themeFolder = self.Folder .. '/themes'
 			local files = listfiles(themeFolder)
 			local deleted = 0
 
 			for _, file in ipairs(files) do
-				if file:sub(-5) == '.json' and isfile(file) then
+				if not isfolder(file) and isfile(file) then
 					delfile(file)
 					deleted = deleted + 1
 				end
 			end
 
-			if isfile(themeFolder .. '/default.txt') then
-				delfile(themeFolder .. '/default.txt')
-			end
-
 			Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
 			Options.ThemeManager_CustomThemeList:SetValue(nil)
-
-			self.Library:Notify(string.format('Wiped %d custom theme(s) and reset default.', deleted))
+			self.Library:Notify(string.format('Wiped %d file(s) from themes folder.', deleted))
 		end)
 
-		self:LoadDefault()
+		ThemeManager:LoadDefault()
 
 		local function UpdateTheme()
 			self:ThemeUpdate()
 		end
-
 		Options.BackgroundColor:OnChanged(UpdateTheme)
 		Options.MainColor:OnChanged(UpdateTheme)
 		Options.AccentColor:OnChanged(UpdateTheme)
@@ -160,11 +145,9 @@ local ThemeManager = {} do
 	function ThemeManager:GetCustomTheme(file)
 		local path = self.Folder .. '/themes/' .. file
 		if not isfile(path) then return nil end
-
 		local data = readfile(path)
 		local success, decoded = pcall(httpService.JSONDecode, httpService, data)
 		if not success then return nil end
-
 		return decoded
 	end
 
@@ -172,35 +155,22 @@ local ThemeManager = {} do
 		if file:gsub(' ', '') == '' then
 			return self.Library:Notify('Invalid file name for theme (empty)', 3)
 		end
-
 		local theme = {}
-		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
-		for _, field in next, fields do
+		for _, field in next, { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" } do
 			theme[field] = Options[field].Value:ToHex()
 		end
-
 		writefile(self.Folder .. '/themes/' .. file .. '.json', httpService:JSONEncode(theme))
 	end
 
 	function ThemeManager:ReloadCustomThemes()
 		local list = listfiles(self.Folder .. '/themes')
 		local out = {}
-
-		for i = 1, #list do
-			local file = list[i]
-			if file:sub(-5) == '.json' then
-				local pos = file:find('.json', 1, true)
-				local char = file:sub(pos, pos)
-				while char ~= '/' and char ~= '\\' and char ~= '' do
-					pos = pos - 1
-					char = file:sub(pos, pos)
-				end
-				if char == '/' or char == '\\' then
-					table.insert(out, file:sub(pos + 1))
-				end
+		for _, file in ipairs(list) do
+			if file:sub(-5) == '.json' and isfile(file) then
+				local name = file:match("^.+[/\\](.+)%.json$")
+				if name then table.insert(out, name) end
 			end
 		end
-
 		return out
 	end
 
@@ -211,19 +181,13 @@ local ThemeManager = {} do
 	function ThemeManager:BuildFolderTree()
 		local paths = {}
 		local parts = self.Folder:split('/')
-
-		for idx = 1, #parts do
-			paths[#paths + 1] = table.concat(parts, '/', 1, idx)
+		for i = 1, #parts do
+			table.insert(paths, table.concat(parts, '/', 1, i))
 		end
-
 		table.insert(paths, self.Folder .. '/themes')
 		table.insert(paths, self.Folder .. '/settings')
-
-		for i = 1, #paths do
-			local str = paths[i]
-			if not isfolder(str) then
-				makefolder(str)
-			end
+		for _, path in ipairs(paths) do
+			if not isfolder(path) then makefolder(path) end
 		end
 	end
 
