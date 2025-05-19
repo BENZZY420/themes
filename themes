@@ -31,56 +31,37 @@ ThemeManager.BuiltInThemes = {
     ['Vivid Green'] = { 26, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"263A23","AccentColor":"9CE1A3","BackgroundColor":"1F2F1C","OutlineColor":"2C3F28"}') }
 }
 
-	local RunService = game:GetService("RunService")
+	function ThemeManager:ApplyTheme(theme)
+		local customThemeData = self:GetCustomTheme(theme)
+		local data = customThemeData or self.BuiltInThemes[theme]
 
-function ThemeManager:ApplyTheme(theme)
-    local customThemeData = self:GetCustomTheme(theme)
-    local data = customThemeData or self.BuiltInThemes[theme]
+		if not data then return end
 
-    if not data then return end
+		local scheme = data[2]
+		for idx, col in next, customThemeData or scheme do
+			self.Library[idx] = Color3.fromHex(col)
+			
+			if Options[idx] then
+				Options[idx]:SetValueRGB(Color3.fromHex(col))
+			end
+		end
 
-    local scheme = data[2]
-    for idx, col in next, customThemeData or scheme do
-        self.Library[idx] = Color3.fromHex(col)
-
-        if Options[idx] then
-            Options[idx]:SetValueRGB(Color3.fromHex(col))
-        end
-    end
-
-    if theme == "Rainbow" then
-        -- Disconnect any previous rainbow connection if exists
-        if self._rainbowConnection then
-            self._rainbowConnection:Disconnect()
-            self._rainbowConnection = nil
-        end
-
-        self._rainbowConnection = RunService.Heartbeat:Connect(function()
-            if Options.ThemeManager_ThemeList.Value ~= "Rainbow" then
-                -- Stop the rainbow effect when theme changes
-                self._rainbowConnection:Disconnect()
-                self._rainbowConnection = nil
-                return
-            end
-            local hue = tick() % 5 / 5
-            local color = Color3.fromHSV(hue, 1, 1)
-            self.Library.AccentColor = color
-            if Options.AccentColor then
-                Options.AccentColor:SetValueRGB(color)
-            end
-            self:ThemeUpdate()
-        end)
-    else
-        -- If theme is not Rainbow, disconnect rainbow updates if any
-        if self._rainbowConnection then
-            self._rainbowConnection:Disconnect()
-            self._rainbowConnection = nil
-        end
-    end
-
-    self:ThemeUpdate()
-end
-
+		if theme == "Rainbow" then
+			spawn(function()
+				while Options.ThemeManager_ThemeList.Value == "Rainbow" do
+					local hue = tick() % 5 / 5
+					local color = Color3.fromHSV(hue, 1, 1)
+					self.Library.AccentColor = color
+					if Options.AccentColor then
+						Options.AccentColor:SetValueRGB(color)
+					end
+					self:ThemeUpdate()
+					task.wait(0.25)
+				end
+			end)
+		end
+		self:ThemeUpdate()
+	end
 
 	function ThemeManager:ThemeUpdate()
 		local options = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
